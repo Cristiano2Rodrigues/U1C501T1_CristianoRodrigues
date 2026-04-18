@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Protocolo MVP - Web3 Dashboard</title>
-    <script src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js" type="application/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; display: flex; justify-content: center; padding: 20px; }
         .card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
@@ -35,12 +35,11 @@
 </div>
 
 <script>
-    // CONFIGURAÇÕES (COLE SEUS ENDEREÇOS AQUI)
+    // CONFIGURAÇÕES
     const ADDR_TOKEN = "0x758b9a473B5F33a582e914a49a6589E49435e4f7";
     const ADDR_NFT = "0x5b824cbb33Fc798c600Bf8F39427392b0A843DF5";
     const ADDR_STAKING = "0x2E3bA6C4374BD668A011254e4ec25775c9C8F84B";
 
-    // ABIs SIMPLIFICADAS (Apenas as funções que vamos usar)
     const ABI_TOKEN = ["function approve(address spender, uint256 amount) public returns (bool)", "function vote(uint256 propId, uint256 amount) public"];
     const ABI_NFT = ["function safeMint(address to) public"];
     const ABI_STAKING = ["function stake(uint256 amount) public"];
@@ -54,49 +53,66 @@
     }
 
     async function conectar() {
-        if (!window.ethereum) return alert("Instale a MetaMask!");
-        const provider = new ethers.providers.Web3Provider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        signer = provider.getSigner();
-        const addr = await signer.getAddress();
-        document.getElementById('status').innerText = "Conectado: " + addr;
-        log("Carteira conectada com sucesso!");
-    }
+        if (typeof ethers === 'undefined') {
+            alert("A biblioteca ethers não carregou.");
+            return;
+        }
+
+        if (window.ethereum) {
+            try {
+                log("Iniciando conexão...");
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const provider = new ethers.providers.Web3Provider(window.ethereum);
+                signer = provider.getSigner();
+                const address = await signer.getAddress();
+                document.getElementById('status').innerText = "Conectado: " + address;
+                log("Conectado com sucesso!");
+            } catch (error) {
+                log("Erro na conexão: " + error.message);
+            }
+        } else {
+            alert("MetaMask não detectada!");
+        }
+    } // A CHAVE EXTRA ESTAVA AQUI, AGORA ESTÁ CORRETO
 
     async function executarMint() {
+        if (!signer) return alert("Conecte a carteira primeiro!");
         try {
             const contrato = new ethers.Contract(ADDR_NFT, ABI_NFT, signer);
             log("Enviando transação de Mint...");
             const tx = await contrato.safeMint(await signer.getAddress());
+            log("Aguardando confirmação...");
             await tx.wait();
-            log("NFT Mintado! Hash: " + tx.hash.substring(0,15) + "...");
+            log("NFT Mintado! Hash: " + tx.hash.substring(0,20) + "...");
         } catch (e) { log("Erro: " + e.message); }
     }
 
     async function executarStake() {
+        if (!signer) return alert("Conecte a carteira primeiro!");
         try {
             const token = new ethers.Contract(ADDR_TOKEN, ABI_TOKEN, signer);
             const staking = new ethers.Contract(ADDR_STAKING, ABI_STAKING, signer);
             const valor = ethers.utils.parseUnits("10", 18);
 
-            log("Aprovando tokens...");
+            log("Passo 1: Aprovando 10 tokens...");
             const tx1 = await token.approve(ADDR_STAKING, valor);
             await tx1.wait();
 
-            log("Realizando Stake...");
+            log("Passo 2: Realizando Stake...");
             const tx2 = await staking.stake(valor);
             await tx2.wait();
-            log("Stake Concluído!");
+            log("Stake concluído com sucesso!");
         } catch (e) { log("Erro: " + e.message); }
     }
 
     async function executarVoto() {
+        if (!signer) return alert("Conecte a carteira primeiro!");
         try {
             const token = new ethers.Contract(ADDR_TOKEN, ABI_TOKEN, signer);
             log("Votando na Proposta #1...");
             const tx = await token.vote(1, ethers.utils.parseUnits("5", 18));
             await tx.wait();
-            log("Voto registrado na DAO!");
+            log("Voto registrado com sucesso!");
         } catch (e) { log("Erro: " + e.message); }
     }
 </script>
